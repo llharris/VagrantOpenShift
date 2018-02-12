@@ -1,0 +1,60 @@
+---
+- hosts: all
+  become: true
+  tasks:
+  - name: Set ip_forward kernel param to true
+    sysctl:
+      name: net.ipv4.ip_forward
+      value: 1
+      state: present
+      reload: yes 
+  
+  - name: Remove docker packages
+    yum: 
+      name: "{{ item }}"
+      state: absent
+    with_items:
+      - docker
+      - docker-common
+      - docker-selinux
+      - docker-engine
+
+  - name: Install required docker packages
+    yum:
+      name: "{{ item }}"
+      state: latest
+    with_items:
+      - yum-utils
+      - device-mapper-persistent-data
+      - lvm2
+
+  - name: Add the docker-ce repository
+    shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+  - name: Install Docker-CE
+    yum:
+      name: docker-ce
+      state: latest
+
+  - name: Create directory path /etc/docker
+    file:
+      path: /etc/docker
+      state: directory
+      owner: root
+      group: root
+      mode: 0644
+
+  - name: Configure docker insecure registries
+    copy:
+      src: daemon.json
+      dest: /etc/docker/daemon.json
+      owner: root
+      group: root
+      mode: 0644  
+
+  - name: Reload systemd and restart docker
+    systemd:
+      name: docker
+      state: restarted
+      daemon_reload: yes
+    
