@@ -55,6 +55,53 @@
   - name: Reload systemd and restart docker
     systemd:
       name: docker
+      enabled: True
       state: restarted
       daemon_reload: yes
+
+  - name: Start and enable firewalld
+    systemd:
+      name: firewalld
+      enabled: True
+      state: started
+
+  - name: Get Docker Bridge Network Subnet
+    shell: docker network inspect -f "{{ '{{' }} range .IPAM.Config {{ '}}' }}{{ '{{' }} .Subnet {{ '}}' }}{{ '{{' }}end{{ '}}' }}" bridge
+    register: docker_bridge_subnet
+   
+  #- name: Check the value of docker_bridge_subnet
+  #  shell: echo "{{ docker_bridge_subnet.stdout }}" > /tmp/out.txt
+
+  - name: Check value of variable
+    debug:
+      var: docker_bridge_subnet.stdout_lines[0]
     
+  - name: Create dockerc firewalld zone
+    shell: |
+      firewall-cmd --reload
+      firewall-cmd --permanent --new-zone dockerc
+    ignore_errors: True
+
+  - name: Configure Firewalld Source Network
+    firewalld:
+      zone: dockerc
+      source: "{{ docker_bridge_subnet.stdout }}"
+      state: enabled
+
+  - name: Configure Firewalld 8443/tcp
+    firewalld:
+      zone: dockerc
+      port: 8443/tcp
+      permanent: True  
+      
+  - name: Configure Firewalld 53/udp
+    firewalld:
+      zone: dockerc
+      port: 53/udp
+      permanent: True  
+
+  - name: Configure Firewalld 8053/udp
+    firewalld:
+      zone: dockerc
+      port: 8053/udp
+      permanent: True  
